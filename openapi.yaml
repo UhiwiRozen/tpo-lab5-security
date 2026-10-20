@@ -1,0 +1,48 @@
+openapi: 3.0.3
+info:
+  title: Users API
+  version: "1.0"
+servers:
+  - url: http://localhost:5000
+paths:
+  /api/users:
+    get:
+      summary: Список пользователей
+      parameters:
+        - name: name
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+    post:
+      summary: Создание пользователя
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email]
+              properties:
+                name: { type: string, example: alice }
+                email: { type: string, example: alice@test.com }
+      responses:
+        "201": { description: Created }
+        "400": { description: Bad request }
+  /api/users/{id}:
+    delete:
+      summary: Удаление пользователя
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, example: 1 }
+        - name: X-API-Key
+          in: header
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Deleted }
+        "401": { description: Unauthorized }
+        "404": { description: Not found }
