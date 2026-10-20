@@ -1,0 +1,62 @@
+name: Security Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    env:
+      API_TOKEN: ${{ secrets.API_TOKEN || 'ci-test-token' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # ---------- SAST ----------
+      - name: Run Bandit (SAST)
+        run: |
+          bandit -r . -x ./tests,./before -f html -o bandit_report.html --exit-zero
+          bandit -r . -x ./tests,./before -ll
+
+      # ---------- API security tests ----------
+      - name: Run API security tests (pytest)
+        run: pytest -v tests --junitxml=security_tests.xml
+
+      # ---------- DAST ----------
+      - name: Run Flask app
+        run: |
+          python app.py &
+          sleep 5
+
+      - name: Run mini-DAST checks
+        run: python dast_scan.py http://127.0.0.1:5000 dast_report.json
+
+      - name: Run OWASP ZAP API scan (DAST)
+        run: |
+          chmod a+w .
+          docker run --rm --network host -v "${{ github.workspace }}:/zap/wrk/:rw" \
+            ghcr.io/zaproxy/zaproxy:stable zap-api-scan.py \
+            -t /zap/wrk/openapi.yaml -f openapi \
+            -r zap_report.html -J zap_report.json -I
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            bandit_report.html
+            security_tests.xml
+            dast_report.json
+            zap_report.html
+            zap_report.json
